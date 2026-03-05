@@ -550,3 +550,15 @@ class PlaceCube(Place):
 class PlaceCan(Place):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, item_type="can", **kwargs)
+
+
+@register_env("SO100PlaceCube-v1", max_episode_steps=50)
+class SO100PlaceCube(Place):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="cube", robot_uids="so100", **kwargs)
+
+
+@register_env("SO100PlaceCan-v1", max_episode_steps=50)
+class SO100PlaceCan(Place):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="can", robot_uids="so100", **kwargs)

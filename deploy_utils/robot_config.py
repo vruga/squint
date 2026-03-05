@@ -14,7 +14,7 @@ def create_real_robot() -> Robot:
     Returns:
         Configured Robot instance 
     """
-    robot_config = SO101FollowerConfig(
+    robot_config = SO100FollowerConfig(
         port="/dev/ttyACM0",  # CHANGE THIS: your robot's serial port
         use_degrees=True,
         cameras={"base_camera": OpenCVCameraConfig(
@@ -24,12 +24,12 @@ def create_real_robot() -> Robot:
             height=480
         )},
         # cameras={"base_camera": RealSenseCameraConfig(
-        #     serial_number_or_name="053645021390",  
+        #     serial_number_or_name="053645021390",
         #     fps=30,
         #     width=640,
         #     height=480
         # )},
-        id="so101_follower_arm", # CHANGE THIS: your calibration file name
+        id="so100_follower_arm", # CHANGE THIS: your calibration file name
         calibration_dir=Path(__file__).parent,  # CHANGE THIS: path to calibration file directory
     )
 

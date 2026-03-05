@@ -58,11 +58,11 @@ class Args:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
-    track: bool = False
+    track: bool = True
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_entity: Optional[str] = None 
+    wandb_entity: Optional[str] = None
     """the entity (team) of wandb's project"""
-    wandb_project_name: str = "maniskill-so101"
+    wandb_project_name: str = "maniskill-so100"
     """the wandb's project name"""
     wandb_group: str = "SQUINT"
     """the group of the run for wandb"""
@@ -78,7 +78,7 @@ class Args:
     """path to a pretrained checkpoint file to start evaluation/training from (if set to "wandb" will attempt downloading from wandb)"""
 
     # Environment specific arguments
-    env_id: str = "SO101LiftCube-v1"
+    env_id: str = "SO100LiftCube-v1"
     """the id of the environment"""
     env_domain_randomization: bool = True
     """adds domain randomization flag if env supports it"""

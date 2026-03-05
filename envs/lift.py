@@ -413,3 +413,15 @@ class LiftCube(Lift):
 class LiftCan(Lift):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, item_type="can", **kwargs)
+
+
+@register_env("SO100LiftCube-v1", max_episode_steps=50)
+class SO100LiftCube(Lift):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="cube", robot_uids="so100", **kwargs)
+
+
+@register_env("SO100LiftCan-v1", max_episode_steps=50)
+class SO100LiftCan(Lift):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="can", robot_uids="so100", **kwargs)

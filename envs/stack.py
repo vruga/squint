@@ -542,3 +542,15 @@ class StackCube(Stack):
 class StackCan(Stack):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, item_type="can", **kwargs)
+
+
+@register_env("SO100StackCube-v1", max_episode_steps=50)
+class SO100StackCube(Stack):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="cube", robot_uids="so100", **kwargs)
+
+
+@register_env("SO100StackCan-v1", max_episode_steps=50)
+class SO100StackCan(Stack):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="can", robot_uids="so100", **kwargs)

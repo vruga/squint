@@ -16,7 +16,7 @@ Usage:
 # CHANGE THIS TO SWITCH CAMERA TYPE FOR ALL TASKS
 # Options: "wrist" or "third"
 # =============================================================================
-CAMERA_TYPE = "wrist"
+CAMERA_TYPE = "third"
 # =============================================================================
 # This sets the following aliases (defined at bottom of file):
 #   "wrist" -> DefaultCameraEnv = WristCameraEnv

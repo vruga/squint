@@ -412,3 +412,15 @@ class ReachCube(Reach):
 class ReachCan(Reach):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, item_type="can", **kwargs)
+
+
+@register_env("SO100ReachCube-v1", max_episode_steps=50)
+class SO100ReachCube(Reach):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="cube", robot_uids="so100", **kwargs)
+
+
+@register_env("SO100ReachCan-v1", max_episode_steps=50)
+class SO100ReachCan(Reach):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, item_type="can", robot_uids="so100", **kwargs)
