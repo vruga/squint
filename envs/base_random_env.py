@@ -49,6 +49,10 @@ from transforms3d.euler import euler2quat
 from transforms3d.quaternions import qmult
 
 
+SO100_BLACK_PLA_COLOR = (0.08, 0.08, 0.08)
+"""Approximate RGB albedo for the user's black PLA SO100 arm."""
+
+
 @dataclass
 class RandomizationConfig:
     # === Static settings (not affected by domain_randomization flag) ===
@@ -56,7 +60,7 @@ class RandomizationConfig:
     """Noise scale for initial robot joint positions."""
     apply_overlay: bool = True
     """Whether to apply background overlay (greenscreen). If False, returns raw simulation images."""
-    rgb_overlay_path: Optional[str] = os.path.join(os.path.dirname(__file__), "black_overlay.png")
+    rgb_overlay_path: Optional[str] = os.path.join(os.path.dirname(__file__), "workspace_overlay.png")
     """Path to background image. If None and apply_overlay=True, uses black background."""
 
     # === Common randomization settings (affected by domain_randomization flag) ===

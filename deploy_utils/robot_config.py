@@ -18,7 +18,7 @@ def create_real_robot() -> Robot:
         port="/dev/ttyACM0",  # CHANGE THIS: your robot's serial port
         use_degrees=True,
         cameras={"base_camera": OpenCVCameraConfig(
-            index_or_path="/dev/video0",  # CHANGE THIS: your webcam device path
+            index_or_path="/dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._Lenovo_FHD_Webcam_Audio_SN0001-video-index0",  # Stable path for the aligned third-person webcam
             fps=30,
             width=640,
             height=480

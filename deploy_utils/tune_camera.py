@@ -1,8 +1,8 @@
 """
-Live wrist camera tuning for sim2real alignment (SO101).
+Live camera tuning for sim2real alignment (wrist or third-person).
 
 Side-by-side view: Real | Sim | Blended overlay.
-Trackbars adjust wrist camera pose (x, y, z, roll, pitch, yaw) and FOV.
+Trackbars adjust camera pose (x, y, z, roll, pitch, yaw) and FOV.
 Keys: p=print params, r=rest pose, s=start pose (sim+real), f=apply FOV, q=quit.
 """
 
@@ -24,7 +24,9 @@ import torch
 import gymnasium as gym
 import sapien
 from transforms3d.euler import euler2quat
+from transforms3d.euler import quat2euler
 from transforms3d.quaternions import qmult
+from transforms3d.quaternions import quat2mat
 
 from mani_skill.utils.wrappers.flatten import FlattenRGBDObservationWrapper
 from mani_skill.utils.structs import Pose
@@ -61,6 +63,42 @@ class LiveCameraTuner:
         self._setup_exit()
         self._setup_ui()
 
+    def _is_wrist_camera_env(self, env) -> bool:
+        return hasattr(env, "WRIST_CAMERA_BASE_POS") and hasattr(env, "WRIST_CAMERA_BASE_ROT_RAD")
+
+    def _pose_to_xyzrpy(self, pose):
+        p = pose.p
+        q = pose.q
+
+        if hasattr(p, "cpu"):
+            p = p.cpu().numpy()
+        if hasattr(q, "cpu"):
+            q = q.cpu().numpy()
+
+        p = np.asarray(p).reshape(-1, 3)[0]
+        q = np.asarray(q).reshape(-1, 4)[0]
+        roll, pitch, yaw = quat2euler(q, axes="rxyz")
+
+        return (
+            float(p[0]),
+            float(p[1]),
+            float(p[2]),
+            float(np.degrees(roll)),
+            float(np.degrees(pitch)),
+            float(np.degrees(yaw)),
+        )
+
+    def _get_base_camera_fov_deg(self, env) -> float:
+        sensor_cfg = env._sensor_configs.get("base_camera")
+        if sensor_cfg is not None and getattr(sensor_cfg, "fov", None) is not None:
+            return float(np.degrees(sensor_cfg.fov))
+
+        sensor = env._sensors.get("base_camera")
+        if sensor is not None and hasattr(sensor.camera, "fov") and sensor.camera.fov is not None:
+            return float(np.degrees(sensor.camera.fov))
+
+        return self.cam_fov
+
     # --- Sim environment ---
 
     def _create_sim_env(self, preserve_fov=False):
@@ -90,11 +128,10 @@ class LiveCameraTuner:
         self._last_fov = self.cam_fov
 
     def _extract_camera_params(self):
-        """Extract wrist camera params from the sim environment."""
+        """Extract camera params from the sim environment."""
         env = self.sim_env.unwrapped
 
-        # New style (base_random_env.py class constants)
-        if hasattr(env, "WRIST_CAMERA_BASE_POS") and hasattr(env, "WRIST_CAMERA_BASE_ROT_RAD"):
+        if self._is_wrist_camera_env(env):
             pos = env.WRIST_CAMERA_BASE_POS
             rot = env.WRIST_CAMERA_BASE_ROT_RAD
             self.cam_x, self.cam_y, self.cam_z = float(pos[0]), float(pos[1]), float(pos[2])
@@ -105,24 +142,29 @@ class LiveCameraTuner:
                 self.cam_fov = float(np.degrees(env.WRIST_CAMERA_FOV))
             return
 
-        # Old style (instance attributes)
-        if hasattr(env, "_wrist_camera_base_pos") and hasattr(env, "_wrist_camera_base_rot"):
-            pos = env._wrist_camera_base_pos
-            rot = env._wrist_camera_base_rot
-            self.cam_x, self.cam_y, self.cam_z = float(pos[0]), float(pos[1]), float(pos[2])
-            self.cam_roll, self.cam_pitch, self.cam_yaw = float(rot[0]), float(rot[1]), float(rot[2])
-            if hasattr(env, "_wrist_camera_base_fov"):
-                self.cam_fov = float(np.degrees(env._wrist_camera_base_fov))
+        if hasattr(env, "camera_mount"):
+            (
+                self.cam_x,
+                self.cam_y,
+                self.cam_z,
+                self.cam_roll,
+                self.cam_pitch,
+                self.cam_yaw,
+            ) = self._pose_to_xyzrpy(env.camera_mount.pose)
+            self.cam_fov = self._get_base_camera_fov_deg(env)
             return
 
-        # Fallback: read from sensor directly
+        # Fallback: read from sensor local pose
         for name, cam in env._sensors.items():
             if name == "base_camera":
-                p = cam.camera.local_pose
-                self.cam_x, self.cam_y, self.cam_z = float(p.p[0]), float(p.p[1]), float(p.p[2])
-                from transforms3d.euler import quat2euler
-                euler = quat2euler([float(p.q[i]) for i in range(4)], axes="rxyz")
-                self.cam_roll, self.cam_pitch, self.cam_yaw = [float(np.degrees(e)) for e in euler]
+                (
+                    self.cam_x,
+                    self.cam_y,
+                    self.cam_z,
+                    self.cam_roll,
+                    self.cam_pitch,
+                    self.cam_yaw,
+                ) = self._pose_to_xyzrpy(cam.camera.local_pose)
                 if hasattr(cam.camera, "fov") and cam.camera.fov is not None:
                     self.cam_fov = float(np.degrees(cam.camera.fov))
                 break
@@ -155,7 +197,7 @@ class LiveCameraTuner:
         env = self.sim_env.unwrapped
         local_pose = self._get_camera_pose()
 
-        if hasattr(env, "wrist_camera_mount"):
+        if self._is_wrist_camera_env(env):
             gripper_pose = env.agent.robot.links_map["gripper_link"].pose
             p_t = torch.tensor([[self.cam_x, self.cam_y, self.cam_z]], dtype=torch.float32, device=env.device)
             r, p, y = np.radians(self.cam_roll), np.radians(self.cam_pitch), np.radians(self.cam_yaw)
@@ -163,6 +205,8 @@ class LiveCameraTuner:
             q_t = torch.from_numpy(q).unsqueeze(0).to(device=env.device)
             offset = Pose.create_from_pq(p=p_t, q=q_t)
             env.wrist_camera_mount.set_pose(gripper_pose * offset)
+        elif hasattr(env, "camera_mount"):
+            env.camera_mount.set_pose(local_pose)
         else:
             for name, cam in env._sensors.items():
                 if name == "base_camera":
@@ -274,10 +318,30 @@ class LiveCameraTuner:
 
     def print_params(self):
         print(f"\n{'='*60}")
-        print("Wrist camera params for WristCameraEnv (base_random_env.py):")
-        print(f"  WRIST_CAMERA_BASE_POS = ({self.cam_x:.4f}, {self.cam_y:.4f}, {self.cam_z:.4f})")
-        print(f"  WRIST_CAMERA_BASE_ROT_RAD = (np.deg2rad({self.cam_roll:.1f}), np.deg2rad({self.cam_pitch:.1f}), np.deg2rad({self.cam_yaw:.1f}))")
-        print(f"  WRIST_CAMERA_FOV = np.deg2rad({self.cam_fov:.1f})")
+        env = self.sim_env.unwrapped
+        if self._is_wrist_camera_env(env):
+            print("Wrist camera params for WristCameraEnv (base_random_env.py):")
+            print(f"  WRIST_CAMERA_BASE_POS = ({self.cam_x:.4f}, {self.cam_y:.4f}, {self.cam_z:.4f})")
+            print(f"  WRIST_CAMERA_BASE_ROT_RAD = (np.deg2rad({self.cam_roll:.1f}), np.deg2rad({self.cam_pitch:.1f}), np.deg2rad({self.cam_yaw:.1f}))")
+            print(f"  WRIST_CAMERA_FOV = np.deg2rad({self.cam_fov:.1f})")
+        else:
+            eye = np.array([self.cam_x, self.cam_y, self.cam_z], dtype=np.float32)
+            quat = qmult(
+                euler2quat(0, np.radians(self.cam_pitch), np.radians(self.cam_yaw), axes="rxyz"),
+                euler2quat(np.radians(self.cam_roll), 0, 0, axes="rxyz"),
+            )
+            forward = quat2mat(quat)[:, 0]
+            target_distance = 1.0
+            if hasattr(env, "base_camera_settings"):
+                base_pos = np.asarray(env.base_camera_settings["pos"], dtype=np.float32)
+                base_target = np.asarray(env.base_camera_settings["target"], dtype=np.float32)
+                target_distance = float(np.linalg.norm(base_target - base_pos))
+            target = eye + forward * target_distance
+
+            print("Third-person camera params for ThirdCameraEnv (base_random_env.py):")
+            print(f"  DEFAULT_CAMERA_POS = [{eye[0]:.4f}, {eye[1]:.4f}, {eye[2]:.4f}]")
+            print(f"  DEFAULT_CAMERA_TARGET = [{target[0]:.4f}, {target[1]:.4f}, {target[2]:.4f}]")
+            print(f"  DEFAULT_CAMERA_FOV = np.deg2rad({self.cam_fov:.1f})")
         print(f"{'='*60}\n")
 
     def run(self):
@@ -339,7 +403,7 @@ class LiveCameraTuner:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Live wrist camera tuning (SO101)")
+    parser = argparse.ArgumentParser(description="Live camera tuning for Squint sim2real alignment")
     parser.add_argument("--env-id", default="SO101ReachCube-v1", help="Sim environment ID")
     parser.add_argument("--sim-width", type=int, default=480)
     parser.add_argument("--sim-height", type=int, default=480)
